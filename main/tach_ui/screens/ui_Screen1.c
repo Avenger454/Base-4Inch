@@ -1,4 +1,5 @@
 #include "../ui.h"
+#include <math.h>
 
 /* Reference artwork is an unmodified RGB565 conversion of the supplied mockup.
  * The original sample digits are covered by an opaque LVGL panel. */
@@ -13,6 +14,8 @@ lv_obj_t *ui_label_mph_value, *ui_label_mph, *ui_label_gear;
 lv_obj_t *ui_label_gear_value, *ui_label_odometer_value;
 static lv_obj_t *rpm_label;
 static int last_rpm = -1;
+/* LVGL keeps this array by reference. */
+static lv_point_t pointer_points[2];
 
 void ui_Screen1_screen_init(void)
 {
@@ -39,15 +42,15 @@ void ui_Screen1_screen_init(void)
     lv_label_set_text(rpm_label, "0");
     lv_obj_center(rpm_label);
 
-    ui_rpm_arc = lv_arc_create(ui_Screen1);
+    /* Retain the exported name; the pointer is now a narrow radial line.
+     * Artwork at zoom 425: inner arch ~224px, outer arch ~352px. */
+    ui_rpm_arc = lv_line_create(ui_Screen1);
     lv_obj_remove_style_all(ui_rpm_arc);
-    lv_obj_set_size(ui_rpm_arc, 704, 704);
-    lv_obj_align(ui_rpm_arc, LV_ALIGN_CENTER, 0, -7);
-    /* A 40px radial pointer spans the tick band instead of a tiny dash. */
-    lv_obj_set_style_arc_width(ui_rpm_arc, 40, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(ui_rpm_arc, false, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(ui_rpm_arc, lv_color_white(), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_opa(ui_rpm_arc, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_set_pos(ui_rpm_arc, 0, 0);
+    lv_obj_set_style_line_width(ui_rpm_arc, 8, 0);
+    lv_obj_set_style_line_color(ui_rpm_arc, lv_color_hex(0xFF0000), 0);
+    lv_obj_set_style_line_opa(ui_rpm_arc, LV_OPA_COVER, 0);
+    lv_obj_set_style_line_rounded(ui_rpm_arc, false, 0);
     lv_obj_clear_flag(ui_rpm_arc, LV_OBJ_FLAG_CLICKABLE);
     /* Existing speed/gear/odo callbacks retain valid, hidden targets. */
     lv_obj_t **legacy[] = {&ui_label_mph_value, &ui_label_mph, &ui_label_gear,
@@ -75,12 +78,17 @@ void ui_tach_set_rpm(int rpm)
     static const int angle_ticks[] = {180, 198, 221, 246, 276, 304, 334, 360};
     unsigned segment = 0;
     while(segment < 6 && capped > rpm_ticks[segment + 1]) ++segment;
-    int angle = angle_ticks[segment] +
-        (capped - rpm_ticks[segment]) *
+    float angle = angle_ticks[segment] +
+        (float)(capped - rpm_ticks[segment]) *
         (angle_ticks[segment + 1] - angle_ticks[segment]) /
         (rpm_ticks[segment + 1] - rpm_ticks[segment]);
-    lv_arc_set_angles(ui_rpm_arc, angle > 180 ? angle - 1 : 180,
-                      angle < 360 ? angle + 1 : 360);
+    float radians = angle * (3.14159265358979323846f / 180.0f);
+    float x = cosf(radians), y = sinf(radians);
+    pointer_points[0].x = (lv_coord_t)lroundf(360.0f + 224.0f * x);
+    pointer_points[0].y = (lv_coord_t)lroundf(353.0f + 224.0f * y);
+    pointer_points[1].x = (lv_coord_t)lroundf(360.0f + 350.0f * x);
+    pointer_points[1].y = (lv_coord_t)lroundf(353.0f + 350.0f * y);
+    lv_line_set_points(ui_rpm_arc, pointer_points, 2);
 }
 
 void ui_Screen1_screen_destroy(void)
