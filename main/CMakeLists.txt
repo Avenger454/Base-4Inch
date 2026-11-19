@@ -61,6 +61,7 @@ idf_component_register(
         "main.c"
         "tach_ui/ui.c"
         "tach_ui/screens/ui_Screen1.c"
+        "tach_ui/fonts/tach_digits.c"
         "tach_ui/images/ui_img_1656279599.c"
         "tach_ui/fonts/ui_font_DotoLarge.c"
         "tach_ui/fonts/ui_font_Doto_48.c"
@@ -81,6 +82,8 @@ idf_component_register(
         "./gps_wrap"
         "./canbus"
         "."
+
+    EMBED_FILES "tach_ui/images/tach_face.rgb565"
 
     EMBED_TXTFILES
         ${CAN_PROTOCOL_JSON}

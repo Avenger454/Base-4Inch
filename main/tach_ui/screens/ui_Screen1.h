@@ -22,6 +22,9 @@ extern lv_obj_t *ui_label_gear;
 extern lv_obj_t *ui_label_gear_value;
 extern lv_obj_t *ui_label_odometer_value;
 
+// Call from the LVGL context.
+void ui_tach_set_rpm(int rpm);
+
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus
@@ -29,4 +32,5 @@ extern lv_obj_t *ui_label_odometer_value;
 #endif
 
 #endif
+
 

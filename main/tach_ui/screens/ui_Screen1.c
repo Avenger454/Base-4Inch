@@ -1,120 +1,82 @@
-// Modified to support 800x800 and 720x720 automatically for 3.4in or 4in displays
-
 #include "../ui.h"
 
-//Base resolution that the project was initially coded for(800x800 round screen)
-#define UI_BASE_RES 800
-#define UI_SCALE(x) ((x) * LV_HOR_RES / UI_BASE_RES)
+/* Reference artwork is an unmodified RGB565 conversion of the supplied mockup.
+ * The original sample digits are covered by an opaque LVGL panel. */
+extern const uint8_t face_start[] asm("_binary_tach_face_rgb565_start");
+LV_FONT_DECLARE(tach_digits);
+static const lv_img_dsc_t face = {
+    .header = {.cf = LV_IMG_CF_TRUE_COLOR, .w = 512, .h = 512},
+    .data_size = 512 * 512 * 2, .data = face_start
+};
+lv_obj_t *ui_Screen1, *ui_rpm_bg, *ui_rpm_arc;
+lv_obj_t *ui_label_mph_value, *ui_label_mph, *ui_label_gear;
+lv_obj_t *ui_label_gear_value, *ui_label_odometer_value;
+static lv_obj_t *rpm_label;
+static int last_rpm = -1;
 
-lv_obj_t *ui_Screen1 = NULL;
-lv_obj_t *ui_rpm_bg = NULL;
-lv_obj_t *ui_rpm_arc = NULL;
-lv_obj_t *ui_label_mph_value = NULL;
-lv_obj_t *ui_label_mph  = NULL;
-lv_obj_t *ui_label_gear = NULL;
-lv_obj_t *ui_label_gear_value = NULL;
-lv_obj_t *ui_label_odometer_value = NULL;
+void ui_Screen1_screen_init(void)
+{
+    ui_Screen1 = lv_obj_create(NULL);
+    lv_obj_set_style_bg_color(ui_Screen1, lv_color_black(), 0);
+    lv_obj_clear_flag(ui_Screen1, LV_OBJ_FLAG_SCROLLABLE);
+    ui_rpm_bg = lv_img_create(ui_Screen1);
+    lv_img_set_src(ui_rpm_bg, &face);
+    lv_obj_center(ui_rpm_bg);
+    /* 512 * 360 / 256 = 720. Display target is 720 x 720. */
+    lv_img_set_zoom(ui_rpm_bg, 360);
 
-void ui_Screen1_screen_init(void) {
+    lv_obj_t *panel = lv_obj_create(ui_Screen1);
+    lv_obj_remove_style_all(panel);
+    lv_obj_set_pos(panel, 211, 325);
+    lv_obj_set_size(panel, 296, 81);
+    lv_obj_set_style_bg_color(panel, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+    rpm_label = lv_label_create(panel);
+    lv_obj_set_style_text_font(rpm_label, &tach_digits, 0);
+    lv_obj_set_style_text_color(rpm_label, lv_color_white(), 0);
+    lv_label_set_text(rpm_label, "0");
+    lv_obj_center(rpm_label);
 
-   ui_Screen1 = lv_obj_create(NULL);
-   lv_obj_clear_flag(ui_Screen1, LV_OBJ_FLAG_SCROLLABLE);
+    ui_rpm_arc = lv_arc_create(ui_Screen1);
+    lv_obj_remove_style_all(ui_rpm_arc);
+    lv_obj_set_size(ui_rpm_arc, 598, 598);
+    lv_obj_center(ui_rpm_arc);
+    lv_obj_set_style_arc_width(ui_rpm_arc, 5, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(ui_rpm_arc, lv_color_white(), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_opa(ui_rpm_arc, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_clear_flag(ui_rpm_arc, LV_OBJ_FLAG_CLICKABLE);
+    /* Existing speed/gear/odo callbacks retain valid, hidden targets. */
+    lv_obj_t **legacy[] = {&ui_label_mph_value, &ui_label_mph, &ui_label_gear,
+                          &ui_label_gear_value, &ui_label_odometer_value};
+    for(unsigned i = 0; i < sizeof(legacy) / sizeof(legacy[0]); ++i) {
+        *legacy[i] = lv_label_create(ui_Screen1);
+        lv_obj_add_flag(*legacy[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    last_rpm = -1;
+    ui_tach_set_rpm(0);
+}
 
-   ui_rpm_bg = lv_img_create(ui_Screen1);
-   lv_img_set_src(ui_rpm_bg, &ui_img_1656279599);
-   lv_obj_set_width(ui_rpm_bg, LV_SIZE_CONTENT);
-   lv_obj_set_height(ui_rpm_bg, LV_SIZE_CONTENT);
-   lv_obj_set_x(ui_rpm_bg, 0);
-   lv_obj_set_y(ui_rpm_bg, UI_SCALE(4));
-   lv_obj_set_align(ui_rpm_bg, LV_ALIGN_CENTER);
-   lv_obj_add_flag(ui_rpm_bg, LV_OBJ_FLAG_ADV_HITTEST);
-   lv_obj_clear_flag(ui_rpm_bg, LV_OBJ_FLAG_SCROLLABLE);
-
-   ui_rpm_arc = lv_arc_create(ui_Screen1);
-   lv_obj_set_width(ui_rpm_arc, UI_SCALE(830));
-   lv_obj_set_height(ui_rpm_arc, UI_SCALE(780));
-   lv_obj_set_x(ui_rpm_arc, UI_SCALE(24));
-   lv_obj_set_y(ui_rpm_arc, 0);
-   lv_obj_set_align(ui_rpm_arc, LV_ALIGN_CENTER);
-
-   lv_arc_set_bg_angles(ui_rpm_arc, 90, 0);
-   lv_arc_set_range(ui_rpm_arc, 0, 9000);
-
-   lv_obj_set_style_arc_width(ui_rpm_arc, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-   lv_obj_set_style_bg_color(ui_rpm_arc, lv_color_hex(0xFFFFFF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-   lv_obj_set_style_bg_opa(ui_rpm_arc, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-   lv_obj_set_style_arc_color(ui_rpm_arc, lv_color_hex(0x28FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-   lv_obj_set_style_arc_opa(ui_rpm_arc, 180, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-   lv_obj_set_style_arc_width(ui_rpm_arc, UI_SCALE(12), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-   lv_obj_set_style_arc_rounded(ui_rpm_arc, false, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-
-   lv_obj_set_style_arc_opa(ui_rpm_arc, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
-   lv_obj_set_style_bg_opa(ui_rpm_arc, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
-   lv_obj_set_style_border_opa(ui_rpm_arc, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-   lv_obj_set_style_bg_color(ui_rpm_arc, lv_color_hex(0xFFFFFF), LV_PART_KNOB | LV_STATE_DEFAULT);
-   lv_obj_set_style_bg_opa(ui_rpm_arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
-
-   ui_label_mph_value = lv_label_create(ui_Screen1);
-   lv_obj_set_width(ui_label_mph_value, LV_SIZE_CONTENT);
-   lv_obj_set_height(ui_label_mph_value, LV_SIZE_CONTENT);
-   lv_obj_set_align(ui_label_mph_value, LV_ALIGN_CENTER);
-   lv_obj_set_x(ui_label_mph_value, UI_SCALE(17));
-   lv_obj_set_y(ui_label_mph_value, UI_SCALE(154));
-   lv_label_set_text(ui_label_mph_value, "--");
-   lv_obj_set_style_text_color(ui_label_mph_value, lv_palette_main(LV_PALETTE_CYAN), LV_PART_MAIN | LV_STATE_DEFAULT);
-   lv_obj_set_style_text_font(ui_label_mph_value, &ui_font_DotoLarge, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-   ui_label_mph = lv_label_create(ui_Screen1);
-   lv_obj_set_width(ui_label_mph, LV_SIZE_CONTENT);
-   lv_obj_set_height(ui_label_mph, LV_SIZE_CONTENT);
-   lv_obj_set_x(ui_label_mph, UI_SCALE(7));
-   lv_obj_set_y(ui_label_mph, UI_SCALE(63));
-   lv_obj_set_align(ui_label_mph, LV_ALIGN_CENTER);
-   lv_label_set_text(ui_label_mph, "MPH");
-   lv_obj_set_style_text_font(ui_label_mph, &school_bell_48, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-   ui_label_gear = lv_label_create(ui_Screen1);
-   lv_obj_set_width(ui_label_gear, LV_SIZE_CONTENT);
-   lv_obj_set_height(ui_label_gear, LV_SIZE_CONTENT);
-   lv_obj_set_x(ui_label_gear, 0);
-   lv_obj_set_y(ui_label_gear, UI_SCALE(-160));
-   lv_obj_set_align(ui_label_gear, LV_ALIGN_CENTER);
-   lv_label_set_text(ui_label_gear, "GEAR");
-   lv_obj_set_style_text_font(ui_label_gear, &school_bell_48, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-   ui_label_gear_value = lv_label_create(ui_Screen1);
-   lv_obj_set_width(ui_label_gear_value, LV_SIZE_CONTENT);
-   lv_obj_set_height(ui_label_gear_value, LV_SIZE_CONTENT);
-   lv_obj_set_align(ui_label_gear_value, LV_ALIGN_CENTER);
-   lv_obj_set_x(ui_label_gear_value, UI_SCALE(7));
-   lv_obj_set_y(ui_label_gear_value, UI_SCALE(-75));
-   lv_label_set_text(ui_label_gear_value, "N");
-   lv_obj_set_style_text_color(ui_label_gear_value, lv_palette_main(LV_PALETTE_PURPLE), LV_PART_MAIN | LV_STATE_DEFAULT);
-   lv_obj_set_style_text_font(ui_label_gear_value, &ui_font_DotoLarge, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-   ui_label_odometer_value = lv_label_create(ui_Screen1);
-   lv_obj_set_width(ui_label_odometer_value, LV_SIZE_CONTENT);
-   lv_obj_set_height(ui_label_odometer_value, LV_SIZE_CONTENT);
-   lv_obj_set_align(ui_label_odometer_value, LV_ALIGN_CENTER);
-   lv_obj_set_x(ui_label_odometer_value, UI_SCALE(300));
-   lv_obj_set_y(ui_label_odometer_value, UI_SCALE(75));
-   lv_label_set_text(ui_label_odometer_value, "0.0");
-   lv_obj_set_style_text_color(ui_label_odometer_value, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
-   lv_obj_set_style_text_font(ui_label_odometer_value, &ui_font_Doto_48, LV_PART_MAIN | LV_STATE_DEFAULT);
+void ui_tach_set_rpm(int rpm)
+{
+    if(!rpm_label || !ui_rpm_arc) return;
+    if(rpm < 0) rpm = 0;
+    /* Preserve the actual numeric RPM above full scale; clamp only the marker. */
+    if(rpm == last_rpm) return;
+    last_rpm = rpm;
+    lv_label_set_text_fmt(rpm_label, "%d", rpm);
+    lv_obj_center(rpm_label);
+    int capped = rpm > 6500 ? 6500 : rpm;
+    int angle = 180 + capped * 180 / 6500;
+    lv_arc_set_angles(ui_rpm_arc, angle > 180 ? angle - 1 : 180,
+                      angle < 360 ? angle + 1 : 360);
 }
 
 void ui_Screen1_screen_destroy(void)
 {
-   if (ui_Screen1) lv_obj_del(ui_Screen1);
-
-   ui_Screen1 = NULL;
-   ui_rpm_bg = NULL;
-   ui_rpm_arc = NULL;
-   ui_label_mph_value = NULL;
-   ui_label_mph = NULL;
-   ui_label_gear = NULL;
-   ui_label_gear_value = NULL;
-   ui_label_odometer_value = NULL;
+    if(ui_Screen1) lv_obj_del(ui_Screen1);
+    ui_Screen1 = ui_rpm_bg = ui_rpm_arc = rpm_label = NULL;
+    ui_label_mph_value = ui_label_mph = ui_label_gear = NULL;
+    ui_label_gear_value = ui_label_odometer_value = NULL;
+    last_rpm = -1;
 }

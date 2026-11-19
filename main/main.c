@@ -552,39 +552,17 @@ static int detect_gear(float rpm, float mph, float dt)
 }
 
 void tach_set_rpm(int rpm){
-    if(rpm < 0) rpm = 0;
-    if(rpm > 9000) rpm = 9000;
-
-    static lv_color_t current_color = {0};
-
-    lv_color_t new_color;
-
-    if (rpm >= 7000)
-        new_color = red_color;
-    else if (rpm >= 5000)
-        new_color = orange_color;
-    else
-        new_color = green_color;
-
-    // Only change color if needed
-    if (new_color.full != current_color.full) {
-        lv_obj_set_style_arc_color(ui_rpm_arc,
-                                   new_color,
-                                   LV_PART_INDICATOR);
-        current_color = new_color;
-    }
-
-    lv_arc_set_value(ui_rpm_arc, rpm);
+    ui_tach_set_rpm(rpm);
 }
 
 
 void gauge_timer(lv_timer_t * t) {
 #if GAUGE_DEMO_MODE
-    // 10-second triangular sweep: 0 -> 9000 -> 0 RPM.
+    // 10-second triangular sweep: 0 -> 6500 -> 0 RPM.
     // Runs in the existing LVGL timer; no extra task or hardware required.
     const uint32_t phase_ms = (uint32_t)((esp_timer_get_time() / 1000) % 10000);
     const uint32_t ramp_ms = (phase_ms <= 5000) ? phase_ms : (10000 - phase_ms);
-    rpmNow = (float)ramp_ms * (9000.0f / 5000.0f);
+    rpmNow = (float)ramp_ms * (6500.0f / 5000.0f);
 #endif
 
     static float displayRPM = 0.0f;
@@ -1244,3 +1222,4 @@ void app_main(void) {
     bsp_display_brightness_set(50); 
 
 }
+
