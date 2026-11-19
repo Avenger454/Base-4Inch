@@ -558,11 +558,11 @@ void tach_set_rpm(int rpm){
 
 void gauge_timer(lv_timer_t * t) {
 #if GAUGE_DEMO_MODE
-    // 10-second triangular sweep: 0 -> 6500 -> 0 RPM.
+    // 30-second triangular sweep: 15 seconds up, 15 seconds down.
     // Runs in the existing LVGL timer; no extra task or hardware required.
-    const uint32_t phase_ms = (uint32_t)((esp_timer_get_time() / 1000) % 10000);
-    const uint32_t ramp_ms = (phase_ms <= 5000) ? phase_ms : (10000 - phase_ms);
-    rpmNow = (float)ramp_ms * (6500.0f / 5000.0f);
+    const uint32_t phase_ms = (uint32_t)((esp_timer_get_time() / 1000) % 30000);
+    const uint32_t ramp_ms = (phase_ms <= 15000) ? phase_ms : (30000 - phase_ms);
+    rpmNow = (float)ramp_ms * (6500.0f / 15000.0f);
 #endif
 
     static float displayRPM = 0.0f;
