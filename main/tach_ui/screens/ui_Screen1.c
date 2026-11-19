@@ -43,7 +43,9 @@ void ui_Screen1_screen_init(void)
     lv_obj_remove_style_all(ui_rpm_arc);
     lv_obj_set_size(ui_rpm_arc, 704, 704);
     lv_obj_align(ui_rpm_arc, LV_ALIGN_CENTER, 0, -7);
-    lv_obj_set_style_arc_width(ui_rpm_arc, 5, LV_PART_INDICATOR);
+    /* A 40px radial pointer spans the tick band instead of a tiny dash. */
+    lv_obj_set_style_arc_width(ui_rpm_arc, 40, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(ui_rpm_arc, false, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(ui_rpm_arc, lv_color_white(), LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(ui_rpm_arc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_clear_flag(ui_rpm_arc, LV_OBJ_FLAG_CLICKABLE);
