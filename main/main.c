@@ -27,6 +27,9 @@
 #include "canbus.h"
 
 
+// Standalone tachometer graphics test. Set to 0 for normal CAN/analog inputs.
+#define GAUGE_DEMO_MODE 1
+
 // =======================================================
 // SENSOR SOURCE CONFIG
 // =======================================================
@@ -549,33 +552,18 @@ static int detect_gear(float rpm, float mph, float dt)
 }
 
 void tach_set_rpm(int rpm){
-    if(rpm < 0) rpm = 0;
-    if(rpm > 9000) rpm = 9000;
-
-    static lv_color_t current_color = {0};
-
-    lv_color_t new_color;
-
-    if (rpm >= 7000)
-        new_color = red_color;
-    else if (rpm >= 5000)
-        new_color = orange_color;
-    else
-        new_color = green_color;
-
-    // Only change color if needed
-    if (new_color.full != current_color.full) {
-        lv_obj_set_style_arc_color(ui_rpm_arc,
-                                   new_color,
-                                   LV_PART_INDICATOR);
-        current_color = new_color;
-    }
-
-    lv_arc_set_value(ui_rpm_arc, rpm);
+    ui_tach_set_rpm(rpm);
 }
 
 
 void gauge_timer(lv_timer_t * t) {
+#if GAUGE_DEMO_MODE
+    // 30-second triangular sweep: 15 seconds up, 15 seconds down.
+    // Runs in the existing LVGL timer; no extra task or hardware required.
+    const uint32_t phase_ms = (uint32_t)((esp_timer_get_time() / 1000) % 30000);
+    const uint32_t ramp_ms = (phase_ms <= 15000) ? phase_ms : (30000 - phase_ms);
+    rpmNow = (float)ramp_ms * (6500.0f / 15000.0f);
+#endif
 
     static float displayRPM = 0.0f;
     displayRPM += 0.20f * (rpmNow - displayRPM);
@@ -588,34 +576,13 @@ void gauge_timer(lv_timer_t * t) {
     update_label_if_needed(ui_label_odometer_value, odo_buf, green_color);
 
 
-    // -------- GEAR DETECTION -------- //
-    static int64_t last_us = 0;
-    int64_t now_us = esp_timer_get_time();
-    float dt = (last_us == 0) ? 0.01f :
-               (now_us - last_us) / 1000000.0f;
-    last_us = now_us;
-
-    float speed_for_gear = g_speed_mph;
-
-    if (speed_for_gear < GPS_MIN_VALID_MPH)
-        speed_for_gear = 0.0f;
-
-    int gear = detect_gear(rpmNow, speed_for_gear, dt);
-
-    static int last_displayed = -1;
-
-    if (gear != last_displayed) {
-
-        if(gear == -1) {
-            update_label_if_needed(ui_label_gear_value, "N", purple_color);
-        } else {
-            char buf[2];
-            snprintf(buf, sizeof(buf), "%d", gear);
-            update_label_if_needed(ui_label_gear_value, buf, purple_color);
-        }
-
-        last_displayed = gear;
-    }
+    // Demo gears are display tests, not inferred transmission state.
+#if GAUGE_DEMO_MODE
+    ui_tach_set_gear(1 + (int)((esp_timer_get_time() / 3000000LL) % 8));
+#else
+    // Feed verified transmission gear here when its protocol is integrated.
+    ui_tach_set_gear(-1);
+#endif
 
     if (SENSOR_SOURCE == SENSOR_SOURCE_CAN){
         float speed_mph = g_speed_mph;
@@ -1191,7 +1158,8 @@ void app_main(void) {
     bsp_display_cfg_t cfg = {
         .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
         .buffer_size = BSP_LCD_DRAW_BUFF_SIZE,
-        .double_buffer = BSP_LCD_DRAW_BUFF_DOUBLE,
+        // Two DMA-capable partial draw buffers; 720 x 50 x 2 bytes each.
+        .double_buffer = true,
         .flags = {
             .buff_dma = true,
             .buff_spiram = false,
@@ -1212,6 +1180,7 @@ void app_main(void) {
     uart_init(UART1_PORT, UART1_TX_PIN, UART_PIN_NO_CHANGE, UART_TX_BUF_SIZE, UART_BAUD_RATE); 
     uart_init(GPS_UART_NUM, UART_PIN_NO_CHANGE, GPS_RX_PIN, (GPS_BUF_SIZE*2), GPS_BAUD_RATE); 
 
+#if !GAUGE_DEMO_MODE
     if (SENSOR_SOURCE == SENSOR_SOURCE_CAN){
         canbus_init();
         xTaskCreatePinnedToCore(canbus_task,"can_rx",4096,NULL,10,NULL,0);
@@ -1222,10 +1191,15 @@ void app_main(void) {
         xTaskCreatePinnedToCore(adc_task, "adc_uart_task", 4096, NULL, 5, NULL, 0);
     }
 
+#endif // !GAUGE_DEMO_MODE
+
+#if !GAUGE_DEMO_MODE
     xTaskCreatePinnedToCore(save_miles_task, "save_miles_task", 4096, NULL, 4, NULL, 0);
+#endif
 
     bsp_display_backlight_off();
     vTaskDelay(pdMS_TO_TICKS(100)); 
     bsp_display_brightness_set(50); 
 
 }
+
