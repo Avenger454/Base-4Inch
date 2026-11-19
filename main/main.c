@@ -27,6 +27,9 @@
 #include "canbus.h"
 
 
+// Standalone tachometer graphics test. Set to 0 for normal CAN/analog inputs.
+#define GAUGE_DEMO_MODE 1
+
 // =======================================================
 // SENSOR SOURCE CONFIG
 // =======================================================
@@ -576,6 +579,13 @@ void tach_set_rpm(int rpm){
 
 
 void gauge_timer(lv_timer_t * t) {
+#if GAUGE_DEMO_MODE
+    // 10-second triangular sweep: 0 -> 9000 -> 0 RPM.
+    // Runs in the existing LVGL timer; no extra task or hardware required.
+    const uint32_t phase_ms = (uint32_t)((esp_timer_get_time() / 1000) % 10000);
+    const uint32_t ramp_ms = (phase_ms <= 5000) ? phase_ms : (10000 - phase_ms);
+    rpmNow = (float)ramp_ms * (9000.0f / 5000.0f);
+#endif
 
     static float displayRPM = 0.0f;
     displayRPM += 0.20f * (rpmNow - displayRPM);
@@ -1212,6 +1222,7 @@ void app_main(void) {
     uart_init(UART1_PORT, UART1_TX_PIN, UART_PIN_NO_CHANGE, UART_TX_BUF_SIZE, UART_BAUD_RATE); 
     uart_init(GPS_UART_NUM, UART_PIN_NO_CHANGE, GPS_RX_PIN, (GPS_BUF_SIZE*2), GPS_BAUD_RATE); 
 
+#if !GAUGE_DEMO_MODE
     if (SENSOR_SOURCE == SENSOR_SOURCE_CAN){
         canbus_init();
         xTaskCreatePinnedToCore(canbus_task,"can_rx",4096,NULL,10,NULL,0);
@@ -1222,7 +1233,11 @@ void app_main(void) {
         xTaskCreatePinnedToCore(adc_task, "adc_uart_task", 4096, NULL, 5, NULL, 0);
     }
 
+#endif // !GAUGE_DEMO_MODE
+
+#if !GAUGE_DEMO_MODE
     xTaskCreatePinnedToCore(save_miles_task, "save_miles_task", 4096, NULL, 4, NULL, 0);
+#endif
 
     bsp_display_backlight_off();
     vTaskDelay(pdMS_TO_TICKS(100)); 
