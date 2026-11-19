@@ -16,6 +16,8 @@ static lv_obj_t *rpm_label;
 static int last_rpm = -1;
 /* LVGL keeps this array by reference. */
 static lv_point_t pointer_points[2];
+static lv_point_t last_screen_points[2];
+static bool pointer_position_valid;
 
 void ui_Screen1_screen_init(void)
 {
@@ -60,6 +62,7 @@ void ui_Screen1_screen_init(void)
         lv_obj_add_flag(*legacy[i], LV_OBJ_FLAG_HIDDEN);
     }
     last_rpm = -1;
+    pointer_position_valid = false;
     ui_tach_set_rpm(0);
 }
 
@@ -84,11 +87,35 @@ void ui_tach_set_rpm(int rpm)
         (rpm_ticks[segment + 1] - rpm_ticks[segment]);
     float radians = angle * (3.14159265358979323846f / 180.0f);
     float x = cosf(radians), y = sinf(radians);
-    pointer_points[0].x = (lv_coord_t)lroundf(360.0f + 224.0f * x);
-    pointer_points[0].y = (lv_coord_t)lroundf(353.0f + 224.0f * y);
-    pointer_points[1].x = (lv_coord_t)lroundf(360.0f + 350.0f * x);
-    pointer_points[1].y = (lv_coord_t)lroundf(353.0f + 350.0f * y);
+    lv_point_t screen_points[2] = {
+        {(lv_coord_t)lroundf(360.0f + 224.0f * x),
+         (lv_coord_t)lroundf(353.0f + 224.0f * y)},
+        {(lv_coord_t)lroundf(360.0f + 350.0f * x),
+         (lv_coord_t)lroundf(353.0f + 350.0f * y)}
+    };
+    if(pointer_position_valid &&
+       screen_points[0].x == last_screen_points[0].x &&
+       screen_points[0].y == last_screen_points[0].y &&
+       screen_points[1].x == last_screen_points[1].x &&
+       screen_points[1].y == last_screen_points[1].y) return;
+
+    lv_coord_t left = LV_MIN(screen_points[0].x, screen_points[1].x);
+    lv_coord_t top = LV_MIN(screen_points[0].y, screen_points[1].y);
+    lv_coord_t width = LV_ABS(screen_points[1].x - screen_points[0].x) + 1;
+    lv_coord_t height = LV_ABS(screen_points[1].y - screen_points[0].y) + 1;
+    /* Invalidate the previous geometry BEFORE modifying the referenced points. */
+    lv_obj_invalidate(ui_rpm_arc);
+    for(unsigned i = 0; i < 2; ++i) {
+        last_screen_points[i] = screen_points[i];
+        pointer_points[i].x = screen_points[i].x - left;
+        pointer_points[i].y = screen_points[i].y - top;
+    }
+    /* Local coordinates keep the object's dirty rectangle around the needle,
+     * rather than stretching from screen origin to the needle's far end. */
+    lv_obj_set_pos(ui_rpm_arc, left, top);
+    lv_obj_set_size(ui_rpm_arc, width, height);
     lv_line_set_points(ui_rpm_arc, pointer_points, 2);
+    pointer_position_valid = true;
 }
 
 void ui_Screen1_screen_destroy(void)
@@ -98,4 +125,5 @@ void ui_Screen1_screen_destroy(void)
     ui_label_mph_value = ui_label_mph = ui_label_gear = NULL;
     ui_label_gear_value = ui_label_odometer_value = NULL;
     last_rpm = -1;
+    pointer_position_valid = false;
 }
