@@ -576,34 +576,13 @@ void gauge_timer(lv_timer_t * t) {
     update_label_if_needed(ui_label_odometer_value, odo_buf, green_color);
 
 
-    // -------- GEAR DETECTION -------- //
-    static int64_t last_us = 0;
-    int64_t now_us = esp_timer_get_time();
-    float dt = (last_us == 0) ? 0.01f :
-               (now_us - last_us) / 1000000.0f;
-    last_us = now_us;
-
-    float speed_for_gear = g_speed_mph;
-
-    if (speed_for_gear < GPS_MIN_VALID_MPH)
-        speed_for_gear = 0.0f;
-
-    int gear = detect_gear(rpmNow, speed_for_gear, dt);
-
-    static int last_displayed = -1;
-
-    if (gear != last_displayed) {
-
-        if(gear == -1) {
-            update_label_if_needed(ui_label_gear_value, "N", purple_color);
-        } else {
-            char buf[2];
-            snprintf(buf, sizeof(buf), "%d", gear);
-            update_label_if_needed(ui_label_gear_value, buf, purple_color);
-        }
-
-        last_displayed = gear;
-    }
+    // Demo gears are display tests, not inferred transmission state.
+#if GAUGE_DEMO_MODE
+    ui_tach_set_gear(1 + (int)((esp_timer_get_time() / 3000000LL) % 8));
+#else
+    // Feed verified transmission gear here when its protocol is integrated.
+    ui_tach_set_gear(-1);
+#endif
 
     if (SENSOR_SOURCE == SENSOR_SOURCE_CAN){
         float speed_mph = g_speed_mph;
