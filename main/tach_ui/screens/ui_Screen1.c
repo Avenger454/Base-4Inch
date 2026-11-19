@@ -33,8 +33,9 @@ void ui_Screen1_screen_init(void)
 
     lv_obj_t *panel = lv_obj_create(ui_Screen1);
     lv_obj_remove_style_all(panel);
-    lv_obj_set_pos(panel, 184, 319);
-    lv_obj_set_size(panel, 350, 96);
+    lv_obj_set_pos(panel, 204, 322);
+    lv_obj_set_size(panel, 308, 91);
+    lv_obj_set_style_radius(panel, 12, 0);
     lv_obj_set_style_bg_color(panel, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
