@@ -46,7 +46,7 @@ void ui_Screen1_screen_init(void) {
    lv_obj_set_style_bg_opa(ui_rpm_arc, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
    lv_obj_set_style_arc_color(ui_rpm_arc, lv_color_hex(0x28FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
    lv_obj_set_style_arc_opa(ui_rpm_arc, 180, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-   lv_obj_set_style_arc_width(ui_rpm_arc, UI_SCALE(140), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+   lv_obj_set_style_arc_width(ui_rpm_arc, UI_SCALE(12), LV_PART_INDICATOR | LV_STATE_DEFAULT);
    lv_obj_set_style_arc_rounded(ui_rpm_arc, false, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
    lv_obj_set_style_arc_opa(ui_rpm_arc, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
