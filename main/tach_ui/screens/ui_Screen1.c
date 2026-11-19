@@ -22,13 +22,14 @@ void ui_Screen1_screen_init(void)
     ui_rpm_bg = lv_img_create(ui_Screen1);
     lv_img_set_src(ui_rpm_bg, &face);
     lv_obj_center(ui_rpm_bg);
-    /* 512 * 360 / 256 = 720. Display target is 720 x 720. */
-    lv_img_set_zoom(ui_rpm_bg, 360);
+    /* Fill the 720px circle with the face inside the decorative bezel.
+     * The silver ring is outside the screen at this zoom. */
+    lv_img_set_zoom(ui_rpm_bg, 425);
 
     lv_obj_t *panel = lv_obj_create(ui_Screen1);
     lv_obj_remove_style_all(panel);
-    lv_obj_set_pos(panel, 211, 325);
-    lv_obj_set_size(panel, 296, 81);
+    lv_obj_set_pos(panel, 184, 319);
+    lv_obj_set_size(panel, 350, 96);
     lv_obj_set_style_bg_color(panel, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
@@ -40,8 +41,8 @@ void ui_Screen1_screen_init(void)
 
     ui_rpm_arc = lv_arc_create(ui_Screen1);
     lv_obj_remove_style_all(ui_rpm_arc);
-    lv_obj_set_size(ui_rpm_arc, 598, 598);
-    lv_obj_center(ui_rpm_arc);
+    lv_obj_set_size(ui_rpm_arc, 704, 704);
+    lv_obj_align(ui_rpm_arc, LV_ALIGN_CENTER, 0, -7);
     lv_obj_set_style_arc_width(ui_rpm_arc, 5, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(ui_rpm_arc, lv_color_white(), LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(ui_rpm_arc, LV_OPA_COVER, LV_PART_INDICATOR);
@@ -67,7 +68,15 @@ void ui_tach_set_rpm(int rpm)
     lv_label_set_text_fmt(rpm_label, "%d", rpm);
     lv_obj_center(rpm_label);
     int capped = rpm > 6500 ? 6500 : rpm;
-    int angle = 180 + capped * 180 / 6500;
+    /* Artwork ticks are not uniformly spaced. Calibrate to their positions. */
+    static const int rpm_ticks[] = {0, 1000, 2000, 3000, 4000, 5000, 6000, 6500};
+    static const int angle_ticks[] = {180, 198, 221, 246, 276, 304, 334, 360};
+    unsigned segment = 0;
+    while(segment < 6 && capped > rpm_ticks[segment + 1]) ++segment;
+    int angle = angle_ticks[segment] +
+        (capped - rpm_ticks[segment]) *
+        (angle_ticks[segment + 1] - angle_ticks[segment]) /
+        (rpm_ticks[segment + 1] - rpm_ticks[segment]);
     lv_arc_set_angles(ui_rpm_arc, angle > 180 ? angle - 1 : 180,
                       angle < 360 ? angle + 1 : 360);
 }
