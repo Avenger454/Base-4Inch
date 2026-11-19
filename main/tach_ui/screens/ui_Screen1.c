@@ -14,6 +14,11 @@ lv_obj_t *ui_label_mph_value, *ui_label_mph, *ui_label_gear;
 lv_obj_t *ui_label_gear_value, *ui_label_odometer_value;
 static lv_obj_t *rpm_label;
 static int last_rpm = -1;
+static int last_gear = -99;
+static const lv_point_t gear_outline[] = {
+    {0, 85}, {36, 0}, {196, 0}, {232, 85},
+    {224, 99}, {8, 99}, {0, 85}
+};
 /* LVGL keeps this array by reference. */
 static lv_point_t pointer_points[2];
 static lv_point_t last_screen_points[2];
@@ -62,6 +67,30 @@ void ui_Screen1_screen_init(void)
         *legacy[i] = lv_label_create(ui_Screen1);
         lv_obj_add_flag(*legacy[i], LV_OBJ_FLAG_HIDDEN);
     }
+    /* Gear panel below the RPM readout, above the logo divider. */
+    lv_obj_t *gear_panel = lv_obj_create(ui_Screen1);
+    lv_obj_remove_style_all(gear_panel);
+    lv_obj_set_pos(gear_panel, 242, 464);
+    lv_obj_set_size(gear_panel, 233, 101);
+    lv_obj_set_style_bg_color(gear_panel, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(gear_panel, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(gear_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *outline = lv_line_create(gear_panel);
+    lv_obj_remove_style_all(outline);
+    lv_line_set_points(outline, gear_outline, 7);
+    lv_obj_set_style_line_width(outline, 2, 0);
+    lv_obj_set_style_line_color(outline, lv_color_hex(0x009FFF), 0);
+    /* Reuse the legacy labels as the visible gear UI. */
+    lv_obj_set_parent(ui_label_gear, gear_panel);
+    lv_obj_clear_flag(ui_label_gear, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(ui_label_gear, "GEAR");
+    lv_obj_set_style_text_color(ui_label_gear, lv_color_white(), 0);
+    lv_obj_align(ui_label_gear, LV_ALIGN_TOP_MID, 0, 4);
+    lv_obj_set_parent(ui_label_gear_value, gear_panel);
+    lv_obj_clear_flag(ui_label_gear_value, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_text_color(ui_label_gear_value, lv_color_white(), 0);
+    last_gear = -99;
+    ui_tach_set_gear(-1);
     last_rpm = -1;
     pointer_position_valid = false;
     ui_tach_set_rpm(0);
@@ -117,6 +146,24 @@ void ui_tach_set_rpm(int rpm)
     lv_obj_set_size(ui_rpm_arc, width, height);
     lv_line_set_points(ui_rpm_arc, pointer_points, 2);
     pointer_position_valid = true;
+}
+
+/* -1 = unavailable, 0 = neutral, 1..8 = reported forward gear.
+ * Call only in LVGL context; do not infer neutral from a missing speed signal. */
+void ui_tach_set_gear(int gear)
+{
+    if(!ui_label_gear_value) return;
+    if(gear < -1 || gear > 8) gear = -1;
+    if(gear == last_gear) return;
+    last_gear = gear;
+    if(gear >= 1) {
+        lv_obj_set_style_text_font(ui_label_gear_value, &tach_digits, 0);
+        lv_label_set_text_fmt(ui_label_gear_value, "%d", gear);
+    } else {
+        lv_obj_set_style_text_font(ui_label_gear_value, &ui_font_Doto_48, 0);
+        lv_label_set_text(ui_label_gear_value, gear == 0 ? "N" : "--");
+    }
+    lv_obj_align(ui_label_gear_value, LV_ALIGN_CENTER, 0, 10);
 }
 
 void ui_Screen1_screen_destroy(void)
