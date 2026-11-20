@@ -92,4 +92,9 @@ idf_component_register(
 
 # Normalize the old Waveshare BSP default before ESP-IDF configures the PHY.
 # Link wrapping also covers calls originating in managed component archives.
-target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_lcd_new_dsi_bus")
+# Force extraction of the wrapper from libmain.a before the BSP introduces
+# its wrapped reference; archive order otherwise leaves the symbol unresolved.
+target_link_libraries(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=esp_lcd_new_dsi_bus"
+    "-Wl,--undefined=__wrap_esp_lcd_new_dsi_bus"
+)
