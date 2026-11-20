@@ -1,3 +1,15 @@
+## ESP-IDF 5.5.6 / ESP32-P4 revision 3.x display startup
+
+The bundled Waveshare BSP 0.0.1 selects a legacy PHY reference clock that
+ESP-IDF 5.5.6 rejects on P4 revision 3.x. `main/display_dsi_compat.c` normalizes
+that default before display initialization, using the IDF driver's own
+revision-appropriate selection. It does not edit managed components.
+At startup, the monitor should show `DISPLAY_COMPAT: Using IDF default MIPI DSI PHY reference clock`.
+
+After updating an existing checkout, run `idf.py fullclean build flash monitor`.
+For a ZIP download, extract to a fresh folder and build/flash from that folder.
+The 4-inch display configuration remains 720 x 720, RGB565.
+
 # ESP32 Round Display Digital Gauge Cluster
 
 This project is source-available and free for personal and educational use.
@@ -426,4 +438,4 @@ you need to update the minimum supported board revision with a few clicks.
 
 Follow the instructions here:
 
-https://discord.com/channels/1474501462905192450/1474502475280154927/1480043568469901459
+https://discord.com/channels/1474501462905192450/1474502475280154927/1480043568469901459

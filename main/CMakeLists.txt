@@ -59,6 +59,7 @@ file(APPEND ${PROTOCOL_LIST_FILE}
 idf_component_register(
     SRCS 
         "main.c"
+        "display_dsi_compat.c"
         "tach_ui/ui.c"
         "tach_ui/screens/ui_Screen1.c"
         "tach_ui/fonts/tach_digits.c"
@@ -88,3 +89,7 @@ idf_component_register(
     EMBED_TXTFILES
         ${CAN_PROTOCOL_JSON}
 )
+
+# Normalize the old Waveshare BSP default before ESP-IDF configures the PHY.
+# Link wrapping also covers calls originating in managed component archives.
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_lcd_new_dsi_bus")
