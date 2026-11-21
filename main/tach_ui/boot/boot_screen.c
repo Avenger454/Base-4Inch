@@ -2,6 +2,7 @@
 #include "boot_delta.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #define BOOT_WIDTH 720
 #define BOOT_HEIGHT 720
@@ -22,8 +23,114 @@ static boot_delta_t animation;
 static uint16_t *boot_pixels;
 static bool finish_pending;
 static bool finished;
+static bool profile_active;
+static bool profile_hooked;
+static lv_disp_drv_t *profile_driver;
+static void (*previous_monitor_cb)(lv_disp_drv_t *, uint32_t, uint32_t);
+static int64_t profile_log_start_us;
+static uint32_t profile_refresh_count;
+static uint32_t profile_refresh_ms_sum;
+static uint32_t profile_refresh_ms_max;
+static uint32_t profile_refresh_px_sum;
+static uint32_t profile_refresh_px_max;
+static uint32_t profile_frame_count;
+static uint32_t profile_bbox_px_sum;
+static uint32_t profile_decode_us_sum;
+static uint32_t profile_decode_us_max;
+static uint32_t profile_callback_us_sum;
+static uint32_t profile_callback_us_max;
 
 static void finish_cb(lv_timer_t *timer);
+
+static void profile_reset_window(void)
+{
+    profile_refresh_count = 0;
+    profile_refresh_ms_sum = 0;
+    profile_refresh_ms_max = 0;
+    profile_refresh_px_sum = 0;
+    profile_refresh_px_max = 0;
+    profile_frame_count = 0;
+    profile_bbox_px_sum = 0;
+    profile_decode_us_sum = 0;
+    profile_decode_us_max = 0;
+    profile_callback_us_sum = 0;
+    profile_callback_us_max = 0;
+}
+
+/* LVGL calls this after each refresh with its elapsed time and rendered area. */
+static void boot_monitor_cb(lv_disp_drv_t *driver, uint32_t time_ms, uint32_t px)
+{
+    if (previous_monitor_cb) previous_monitor_cb(driver, time_ms, px);
+    if (!profile_active) return;
+
+    profile_refresh_count++;
+    profile_refresh_ms_sum += time_ms;
+    if (time_ms > profile_refresh_ms_max) profile_refresh_ms_max = time_ms;
+    profile_refresh_px_sum += px;
+    if (px > profile_refresh_px_max) profile_refresh_px_max = px;
+
+    const int64_t now_us = esp_timer_get_time();
+    const int64_t elapsed_us = now_us - profile_log_start_us;
+    if (elapsed_us < 1000000) return;
+
+    const uint32_t lv_fps_x10 = elapsed_us > 0
+        ? (uint32_t)((uint64_t)profile_refresh_count * 10000000ULL / elapsed_us)
+        : 0;
+    const uint32_t frame_fps_x10 = elapsed_us > 0
+        ? (uint32_t)((uint64_t)profile_frame_count * 10000000ULL / elapsed_us)
+        : 0;
+    const uint32_t avg_refresh_ms = profile_refresh_count
+        ? profile_refresh_ms_sum / profile_refresh_count : 0;
+    const uint32_t avg_refresh_px = profile_refresh_count
+        ? profile_refresh_px_sum / profile_refresh_count : 0;
+    const uint32_t avg_bbox_px = profile_frame_count
+        ? profile_bbox_px_sum / profile_frame_count : 0;
+    const uint32_t avg_decode_us = profile_frame_count
+        ? profile_decode_us_sum / profile_frame_count : 0;
+    const uint32_t avg_callback_us = profile_frame_count
+        ? profile_callback_us_sum / profile_frame_count : 0;
+
+    ESP_LOGI("boot_prof",
+             "lvfps=%u.%u framefps=%u.%u refresh=%u/%u ms px=%u avg/%u max "
+             "bbox=%u avg (%u%%) decode=%u avg/%u max us "
+             "frame_cb=%u avg/%u max us",
+             lv_fps_x10 / 10, lv_fps_x10 % 10,
+             frame_fps_x10 / 10, frame_fps_x10 % 10,
+             avg_refresh_ms, profile_refresh_ms_max,
+             avg_refresh_px, profile_refresh_px_max,
+             avg_bbox_px, (avg_bbox_px * 100U) / (BOOT_WIDTH * BOOT_HEIGHT),
+             avg_decode_us, profile_decode_us_max,
+             avg_callback_us, profile_callback_us_max);
+
+    profile_log_start_us = now_us;
+    profile_reset_window();
+}
+
+static void profile_start(void)
+{
+    lv_disp_t *display = lv_disp_get_default();
+    if (!display || !display->driver) return;
+
+    profile_driver = display->driver;
+    previous_monitor_cb = profile_driver->monitor_cb;
+    profile_driver->monitor_cb = boot_monitor_cb;
+    profile_hooked = true;
+    profile_active = true;
+    profile_log_start_us = esp_timer_get_time();
+    profile_reset_window();
+}
+
+static void profile_stop(void)
+{
+    profile_active = false;
+    if (profile_hooked && profile_driver &&
+        profile_driver->monitor_cb == boot_monitor_cb) {
+        profile_driver->monitor_cb = previous_monitor_cb;
+    }
+    profile_driver = NULL;
+    previous_monitor_cb = NULL;
+    profile_hooked = false;
+}
 
 static void schedule_finish(void)
 {
@@ -58,11 +165,17 @@ static void frame_cb(lv_timer_t *timer)
     }
 
     boot_rect_t dirty;
+    const int64_t callback_start_us = esp_timer_get_time();
+    const int64_t decode_start_us = callback_start_us;
     if (!boot_delta_step(&animation, boot_pixels, &dirty)) {
         ESP_LOGE("boot", "Native animation frame decode failed");
         schedule_finish();
         return;
     }
+    const uint32_t decode_us = (uint32_t)(esp_timer_get_time() - decode_start_us);
+    const uint32_t bbox_px = dirty.changed
+        ? (uint32_t)(dirty.x2 - dirty.x1 + 1) * (dirty.y2 - dirty.y1 + 1)
+        : 0;
     if (dirty.changed && boot_image) {
         lv_area_t area = {
             .x1 = dirty.x1, .y1 = dirty.y1,
@@ -70,6 +183,13 @@ static void frame_cb(lv_timer_t *timer)
         };
         lv_obj_invalidate_area(boot_image, &area);
     }
+    const uint32_t callback_us = (uint32_t)(esp_timer_get_time() - callback_start_us);
+    profile_frame_count++;
+    profile_bbox_px_sum += bbox_px;
+    profile_decode_us_sum += decode_us;
+    if (decode_us > profile_decode_us_max) profile_decode_us_max = decode_us;
+    profile_callback_us_sum += callback_us;
+    if (callback_us > profile_callback_us_max) profile_callback_us_max = callback_us;
 }
 
 void boot_screen_create(void)
@@ -137,6 +257,7 @@ void boot_start(void)
         return;
     }
 
+    profile_start();
     lv_scr_load(boot_screen);
     frame_timer = lv_timer_create(frame_cb, animation.period_ms, NULL);
     exit_timer = lv_timer_create(finish_cb, BOOT_FALLBACK_MS, NULL);
@@ -151,6 +272,7 @@ void boot_finish(lv_obj_t *screen)
     if (finished) return;
     finished = true;
     finish_pending = false;
+    profile_stop();
     if (frame_timer) {
         lv_timer_del(frame_timer);
         frame_timer = NULL;

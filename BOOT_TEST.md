@@ -48,6 +48,12 @@ build the firmware.
 5. Repeat several resets; record boot FPS/CPU and compare normal-gauge FPS/CPU
    after the animation with frozen Base. Confirm the normal gauge remains
    responsive after its timer starts.
+6. During boot, capture one `[boot_prof]` serial line. It reports measured FPS,
+   LVGL refresh time and pixels rendered, requested dirty-box size, decoder
+   time, and total frame-callback time. If rendered pixels are near the full
+   720 x 720 frame while the dirty box is much smaller, LVGL is repainting
+   more than requested. If decoder time is small but refresh time is high,
+   investigate the display render/flush path.
 
 ## Validation
 
