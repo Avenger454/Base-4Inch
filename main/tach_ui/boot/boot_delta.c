@@ -16,8 +16,8 @@ bool boot_delta_open(boot_delta_t *d, const uint8_t *data, size_t size)
 static void pixel(uint16_t *dst, uint32_t at, uint16_t value)
 {
     unsigned y=at/360, x=at%360;
-    /* Destination is 720 x 720 RGB565; each source pixel becomes 2 x 2. */
-    uint16_t *p=dst+y*720+x*2;
+    /* Each 360-pixel source row expands to two 720-pixel destination rows. */
+    uint16_t *p=dst+y*1440+x*2;
     p[0]=p[1]=p[720]=p[721]=value;
 }
 bool boot_delta_step(boot_delta_t *d, uint16_t *pixels, boot_rect_t *dirty)
