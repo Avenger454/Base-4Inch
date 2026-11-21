@@ -12,6 +12,7 @@
 #include "lvgl.h"
 #include "lv_demos.h"
 #include "ui.h"
+#include "tach_ui/boot/boot_screen.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -1151,6 +1152,19 @@ static void can_mapping_task(void *arg){
     }
 }
 
+static bool gauge_ui_timer_started;
+
+/* Start visible gauge updates only after the one-shot boot animation ends. */
+void gauge_ui_start(void)
+{
+    if (gauge_ui_timer_started) return;
+    if (lv_timer_create(gauge_timer, 10, NULL)) {
+        gauge_ui_timer_started = true;
+    } else {
+        ESP_LOGE("gauge", "Unable to start gauge update timer");
+    }
+}
+
 
 //------------------------------------------------------------------------//
 
@@ -1173,8 +1187,11 @@ void app_main(void) {
     tach_init();
     odometer_init();
 
+    /* Serialize startup object creation with the running LVGL task. */
+    bsp_display_lock(0);
     ui_init();
-    lv_timer_create(gauge_timer, 10, NULL);
+    boot_screen_show(ui_Screen1);
+    bsp_display_unlock();
 
     uart_init(UART_PORT, UART_TX_PIN, UART_PIN_NO_CHANGE, UART_TX_BUF_SIZE, UART_BAUD_RATE); 
     uart_init(UART1_PORT, UART1_TX_PIN, UART_PIN_NO_CHANGE, UART_TX_BUF_SIZE, UART_BAUD_RATE); 
