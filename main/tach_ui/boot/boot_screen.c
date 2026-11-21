@@ -3,6 +3,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include <string.h>
 
 #define BOOT_WIDTH 720
 #define BOOT_HEIGHT 720
@@ -212,6 +213,9 @@ void boot_screen_create(void)
         boot_screen = NULL;
         return;
     }
+
+    /* Delta frame zero can omit unchanged black pixels; never display heap data. */
+    memset(boot_pixels, 0, BOOT_PIXEL_COUNT * sizeof(*boot_pixels));
 
     if (!boot_delta_open(&animation, boot_vpb_start, asset_size)) {
         ESP_LOGE("boot", "Native animation header is invalid");
