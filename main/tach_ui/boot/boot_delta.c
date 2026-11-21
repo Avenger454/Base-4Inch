@@ -1,6 +1,5 @@
 #include "boot_delta.h"
 #include <string.h>
-#include <limits.h>
 static uint16_t u16(const uint8_t *p) { return p[0] | ((uint16_t)p[1]<<8); }
 static uint32_t u32(const uint8_t *p) { return u16(p) | ((uint32_t)u16(p+2)<<16); }
 bool boot_delta_open(boot_delta_t *d, const uint8_t *data, size_t size)
@@ -17,7 +16,8 @@ bool boot_delta_open(boot_delta_t *d, const uint8_t *data, size_t size)
 static void pixel(uint16_t *dst, uint32_t at, uint16_t value)
 {
     unsigned y=at/360, x=at%360;
-    uint16_t *p=dst+y*1440+x*2;
+    /* Destination is 720 x 720 RGB565; each source pixel becomes 2 x 2. */
+    uint16_t *p=dst+y*720+x*2;
     p[0]=p[1]=p[720]=p[721]=value;
 }
 bool boot_delta_step(boot_delta_t *d, uint16_t *pixels, boot_rect_t *dirty)
@@ -32,7 +32,7 @@ bool boot_delta_step(boot_delta_t *d, uint16_t *pixels, boot_rect_t *dirty)
     while (p<end) {
         if (end-p<6) return false;
         unsigned skip=u16(p), count=u16(p+2), encoded=u16(p+4); p+=6;
-        if (skip>129600-at) return false;
+        if (at>129600 || skip>129600-at) return false;
         at+=skip;
         if (count>129600-at || encoded>(size_t)(end-p)) return false;
         const uint8_t *stop=p+encoded;

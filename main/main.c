@@ -1152,6 +1152,19 @@ static void can_mapping_task(void *arg){
     }
 }
 
+static bool gauge_ui_timer_started;
+
+/* Start visible gauge updates only after the one-shot boot animation ends. */
+void gauge_ui_start(void)
+{
+    if (gauge_ui_timer_started) return;
+    if (lv_timer_create(gauge_timer, 10, NULL)) {
+        gauge_ui_timer_started = true;
+    } else {
+        ESP_LOGE("gauge", "Unable to start gauge update timer");
+    }
+}
+
 
 //------------------------------------------------------------------------//
 
@@ -1177,7 +1190,6 @@ void app_main(void) {
     /* Serialize startup object creation with the running LVGL task. */
     bsp_display_lock(0);
     ui_init();
-    lv_timer_create(gauge_timer, 10, NULL);
     boot_screen_show(ui_Screen1);
     bsp_display_unlock();
 

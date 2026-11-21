@@ -1,15 +1,15 @@
-# The transport-safe source asset is decoded at configure time; no runtime copy.
-set(BOOT_GIF ${CMAKE_CURRENT_BINARY_DIR}/violent_poetry.gif)
+# The transport-safe native RGB565 asset is decoded at configure time.
+set(BOOT_VPB ${CMAKE_CURRENT_BINARY_DIR}/violent_poetry.vpb)
 execute_process(
-    COMMAND ${PYTHON} ${CMAKE_CURRENT_LIST_DIR}/tach_ui/boot/decode_asset.py
-            ${CMAKE_CURRENT_LIST_DIR}/tach_ui/boot/assets/violent_poetry.gif.b64 ${BOOT_GIF}
+    COMMAND ${PYTHON} ${CMAKE_CURRENT_LIST_DIR}/tach_ui/boot/decode_vpb.py
+            ${CMAKE_CURRENT_LIST_DIR}/tach_ui/boot/assets/violent_poetry.vpb.b64 ${BOOT_VPB}
     RESULT_VARIABLE BOOT_ASSET_RESULT
 )
 if(NOT BOOT_ASSET_RESULT EQUAL 0)
     message(FATAL_ERROR "Unable to decode Violent Poetry boot asset")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/tach_ui/boot/assets/violent_poetry.gif.b64")
+    "${CMAKE_CURRENT_LIST_DIR}/tach_ui/boot/assets/violent_poetry.vpb.b64")
 
 # -------------------------------------------------------
 # Collect protocol JSON files
@@ -82,6 +82,7 @@ idf_component_register(
         "tach_ui/fonts/school_bell_48.c"
         "tach_ui/images/ui_img_sti_logo_png.c"
         "tach_ui/boot/boot_screen.c"
+        "tach_ui/boot/boot_delta.c"
         "odometer/odometer.c"
         "lap_timer/lap_timer.c"
         "gps_wrap/gps_wrapper.cpp"
@@ -97,7 +98,7 @@ idf_component_register(
         "./canbus"
         "."
 
-    EMBED_FILES "tach_ui/images/tach_face.rgb565" "${BOOT_GIF}"
+    EMBED_FILES "tach_ui/images/tach_face.rgb565" "${BOOT_VPB}"
 
     EMBED_TXTFILES
         ${CAN_PROTOCOL_JSON}

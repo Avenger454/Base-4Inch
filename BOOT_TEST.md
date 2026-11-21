@@ -8,9 +8,13 @@ The user authorized this isolated baseline test; `main` remains frozen.
 - Plays the approved Violent Poetry skull animation once at startup.
 - Fiery rotating impellers, moving smoke, opening jaw with connected hydraulics.
 - 8.4 seconds at 12.5 frames/s, followed by the normal baseline sweeping tach.
-- The 360 x 360, 128-color playback asset is scaled to fill 720 x 720.
-  This reduces flash and decoder cost; it is intentionally softer than the
-  full-resolution preview. The original preview remains saved separately.
+- Playback uses a native RGB565 delta stream generated from all 105 frames of
+  the approved 360 x 360, 128-color GIF. Each source pixel is expanded to 2 x 2
+  in the 720 x 720 PSRAM frame buffer; LVGL draws the image at native size,
+  without its GIF decoder, image zoom, or per-pixel antialiasing.
+- Only changed frame regions are invalidated. The 10 ms tach/odometer UI timer
+  starts after the boot screen exits, so the hidden gauge does not consume CPU
+  during playback.
 - Completion is deferred out of the decoder callback before deleting its object.
 - A 15-second fallback restores the gauge if decoding cannot finish.
 - Boot screen, GIF buffers and animation timers are released after playback.
@@ -28,11 +32,12 @@ idf.py build
 idf.py -p YOUR_PORT flash monitor
 ```
 
-The checked-in `sdkconfig` and defaults enable `CONFIG_LV_USE_GIF`.
-A small Python standard-library script decodes the checked-in base64 asset at
-CMake configure time and verifies its SHA-256. The GIF is embedded into the
-application, so no SD card, filesystem upload or network access is needed.
-Python is already supplied by ESP-IDF. No extra Python packages are required.
+The native `.vpb` playback asset is checked in as base64. A small Python
+standard-library script decodes it at CMake configure time and verifies its
+SHA-256. The asset is embedded into the application, so no SD card, filesystem
+upload, or network access is needed. The optional asset-encoder script uses
+Pillow and NumPy when regenerating the animation; neither package is needed to
+build the firmware.
 
 ## Hardware checks
 
@@ -40,10 +45,13 @@ Python is already supplied by ESP-IDF. No extra Python packages are required.
 2. Verify smoke and hydraulics remain continuous during jaw opening.
 3. After one playback, confirm the normal gauge sweep and FPS/CPU overlay return.
 4. Check monitor for `Boot animation finished; normal gauge active`.
-5. Repeat several resets and compare post-animation FPS/CPU with frozen Base.
+5. Repeat several resets; record boot FPS/CPU and compare normal-gauge FPS/CPU
+   after the animation with frozen Base. Confirm the normal gauge remains
+   responsive after its timer starts.
 
 ## Validation
 
-The actual LVGL 8.4 decoder and boot module are exercised in a host integration
-check for one-shot completion and screen cleanup. Full ESP-IDF compilation and
-physical-device playback still require the target toolchain and board.
+The decoder and boot module still require full ESP-IDF compilation and
+physical-device playback on the target board. Check the displayed frame rate,
+CPU usage, image quality, and the normal gauge after playback before accepting
+the optimization.
